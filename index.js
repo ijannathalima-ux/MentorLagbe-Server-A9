@@ -73,14 +73,18 @@ const verifyToken = async (req, res, next) => {
   }
 };
 
-
 const verifyTutor = async (req, res, next) => {
   try {
-    const user = await db.collection("users").findOne({
+    const user = await db.collection("user").findOne({
       _id: new ObjectId(req.user.id),
     });
 
+    console.log("Token User ID:", req.user.id);
+    console.log("Found User:", user);
+
     if (!user || user.role !== "tutor") {
+      console.log("User role:", user?.role);
+
       return res.status(403).send({
         msg: "Forbidden! Tutor access only.",
       });
@@ -101,6 +105,77 @@ const verifyTutor = async (req, res, next) => {
   }
 };
 
+
+app.post("/tuitions", verifyToken, verifyTutor, async (req, res) => {
+  try {
+    const {
+      title,
+      subject,
+      classLevel,
+      mode,
+      location,
+      monthlyFee,
+      description,
+      bannerImage,
+    } = req.body;
+
+    if (
+      !title ||
+      !subject ||
+      !classLevel ||
+      !mode ||
+      !monthlyFee ||
+      !description
+    ) {
+      return res.status(400).send({
+        msg: "Please provide all required information.",
+      });
+    }
+
+    if (req.user.plan === "free") {
+      const tuitionCount = await db.collection("tuitions").countDocuments({
+        tutorId: req.user.id,
+      });
+
+      if (tuitionCount >= 2) {
+        return res.status(403).send({
+          msg: "Free plan allows only 2 tuition posts. Upgrade to Pro.",
+        });
+      }
+    }
+
+    const newTuition = {
+      title,
+      subject,
+      classLevel,
+      mode,
+      location: location || "",
+      monthlyFee: Number(monthlyFee),
+      description,
+      bannerImage: bannerImage || "",
+      tutorId: req.user.id,
+      tutorName: req.user.name,
+      tutorEmail: req.user.email,
+      approvalStatus: "pending",
+      isActive: true,
+      createdAt: new Date(),
+    };
+
+    const result = await db.collection("tuitions").insertOne(newTuition);
+
+    res.status(201).send({
+      message: "Tuition posted successfully. Waiting for admin approval.",
+      insertedId: result.insertedId,
+    });
+  } catch (error) {
+    console.error("Tuition post error:", error);
+
+    res.status(500).send({
+      msg: "Failed to post tuition.",
+    });
+  }
+
+});
 
 
 app.get('/tuitions', async (req, res) => {
