@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import "dotenv/config";
-import { MongoClient } from 'mongodb';
+import { MongoClient, ObjectId } from 'mongodb';
 import { createRemoteJWKSet, jwtVerify } from "jose";
 
 const app = express();
@@ -72,6 +72,35 @@ const verifyToken = async (req, res, next) => {
     });
   }
 };
+
+
+const verifyTutor = async (req, res, next) => {
+  try {
+    const user = await db.collection("users").findOne({
+      _id: new ObjectId(req.user.id),
+    });
+
+    if (!user || user.role !== "tutor") {
+      return res.status(403).send({
+        msg: "Forbidden! Tutor access only.",
+      });
+    }
+
+    req.user.role = user.role;
+    req.user.plan = user.plan;
+    req.user.name = user.name;
+    req.user.email = user.email;
+
+    next();
+  } catch (error) {
+    console.error("Tutor verification error:", error);
+
+    res.status(500).send({
+      msg: "Internal server error",
+    });
+  }
+};
+
 
 
 app.get('/tuitions', async (req, res) => {
